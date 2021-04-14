@@ -3812,7 +3812,53 @@ bool MatchNode::equivalent(FormDict &globals, MatchNode *mNode2) {
   return true;
 }
 
-//-------------------------- has_commutative_op -------------------------------
+//----------------------------- is_vector ------------------------------------
+bool MatchNode::is_vector_op() const {
+  static const char *vector_list[] = {
+    "AddVB","AddVS","AddVI","AddVL","AddVF","AddVD",
+    "SubVB","SubVS","SubVI","SubVL","SubVF","SubVD",
+    "MulVB","MulVS","MulVI","MulVL","MulVF","MulVD",
+    "CMoveVD", "CMoveVF",
+    "DivVF","DivVD",
+    "AbsVB","AbsVS","AbsVI","AbsVL","AbsVF","AbsVD",
+    "NegVF","NegVD","NegVI",
+    "SqrtVD","SqrtVF",
+    "AndV" ,"XorV" ,"OrV",
+    "MaxV", "MinV",
+    "AddReductionVI", "AddReductionVL",
+    "AddReductionVF", "AddReductionVD",
+    "MulReductionVI", "MulReductionVL",
+    "MulReductionVF", "MulReductionVD",
+    "MaxReductionV", "MinReductionV",
+    "AndReductionV", "OrReductionV", "XorReductionV",
+    "MulAddVS2VI", "MacroLogicV",
+    "LShiftCntV","RShiftCntV",
+    "LShiftVB","LShiftVS","LShiftVI","LShiftVL",
+    "RShiftVB","RShiftVS","RShiftVI","RShiftVL",
+    "URShiftVB","URShiftVS","URShiftVI","URShiftVL",
+    "ReplicateB","ReplicateS","ReplicateI","ReplicateL","ReplicateF","ReplicateD",
+    "RoundDoubleModeV","RotateLeftV" , "RotateRightV", "LoadVector","StoreVector",
+    "LoadVectorGather", "StoreVectorScatter",
+    "VectorTest", "VectorLoadMask", "VectorStoreMask", "VectorBlend", "VectorInsert",
+    "VectorRearrange","VectorLoadShuffle", "VectorLoadConst",
+    "VectorCastB2X", "VectorCastS2X", "VectorCastI2X",
+    "VectorCastL2X", "VectorCastF2X", "VectorCastD2X",
+    "VectorMaskWrapper", "VectorMaskCmp", "VectorReinterpret", "LoadVectorMasked","StoreVectorMasked",
+    "FmaVD", "FmaVF","PopCountVI",
+    // Next are not supported currently.
+    "PackB","PackS","PackI","PackL","PackF","PackD","Pack2L","Pack2D",
+    "ExtractB","ExtractUB","ExtractC","ExtractS","ExtractI","ExtractL","ExtractF","ExtractD"
+  };
+  int cnt = sizeof(vector_list) / sizeof(char*);
+  for (int i = 0; i < cnt; i++) {
+    if (strcmp(_opType, vector_list[i]) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+//-------------------------- count_commutative_op -------------------------------
 // Recursively check for commutative operations with subtree operands
 // which could be swapped.
 void MatchNode::count_commutative_op(int& count) {
@@ -3844,8 +3890,14 @@ void MatchNode::count_commutative_op(int& count) {
           is_const = true;
       }
     }
-    if( !is_const ) {
-      for( int i=0; i<cnt; i++ ) {
+
+    // Don't swap if type mismatches for vector nodes.
+    bool typeMatch = true;
+    if ( is_vector_op() ) {
+      typeMatch = _lChild->is_vector_op() && _rChild->is_vector_op();
+    }
+    if( !is_const && typeMatch ) {
+      for( int i = 0; i < cnt; i++ ) {
         if( strcmp(_opType, commut_op_list[i]) == 0 ) {
           count++;
           _commutative_id = count; // id should be > 0
@@ -4169,51 +4221,11 @@ Form::DataType MatchRule::is_ideal_load() const {
 }
 
 bool MatchRule::is_vector() const {
-  static const char *vector_list[] = {
-    "AddVB","AddVS","AddVI","AddVL","AddVF","AddVD",
-    "SubVB","SubVS","SubVI","SubVL","SubVF","SubVD",
-    "MulVB","MulVS","MulVI","MulVL","MulVF","MulVD",
-    "CMoveVD", "CMoveVF",
-    "DivVF","DivVD",
-    "AbsVB","AbsVS","AbsVI","AbsVL","AbsVF","AbsVD",
-    "NegVF","NegVD","NegVI",
-    "SqrtVD","SqrtVF",
-    "AndV" ,"XorV" ,"OrV",
-    "MaxV", "MinV",
-    "AddReductionVI", "AddReductionVL",
-    "AddReductionVF", "AddReductionVD",
-    "MulReductionVI", "MulReductionVL",
-    "MulReductionVF", "MulReductionVD",
-    "MaxReductionV", "MinReductionV",
-    "AndReductionV", "OrReductionV", "XorReductionV",
-    "MulAddVS2VI", "MacroLogicV",
-    "LShiftCntV","RShiftCntV",
-    "LShiftVB","LShiftVS","LShiftVI","LShiftVL",
-    "RShiftVB","RShiftVS","RShiftVI","RShiftVL",
-    "URShiftVB","URShiftVS","URShiftVI","URShiftVL",
-    "ReplicateB","ReplicateS","ReplicateI","ReplicateL","ReplicateF","ReplicateD",
-    "RoundDoubleModeV","RotateLeftV" , "RotateRightV", "LoadVector","StoreVector",
-    "LoadVectorGather", "StoreVectorScatter",
-    "VectorTest", "VectorLoadMask", "VectorStoreMask", "VectorBlend", "VectorInsert",
-    "VectorRearrange","VectorLoadShuffle", "VectorLoadConst",
-    "VectorCastB2X", "VectorCastS2X", "VectorCastI2X",
-    "VectorCastL2X", "VectorCastF2X", "VectorCastD2X",
-    "VectorMaskWrapper", "VectorMaskCmp", "VectorReinterpret","LoadVectorMasked","StoreVectorMasked",
-    "FmaVD", "FmaVF","PopCountVI",
-    // Next are not supported currently.
-    "PackB","PackS","PackI","PackL","PackF","PackD","Pack2L","Pack2D",
-    "ExtractB","ExtractUB","ExtractC","ExtractS","ExtractI","ExtractL","ExtractF","ExtractD"
-  };
-  int cnt = sizeof(vector_list)/sizeof(char*);
   if (_rChild) {
-    const char  *opType = _rChild->_opType;
-    for (int i=0; i<cnt; i++)
-      if (strcmp(opType,vector_list[i]) == 0)
-        return true;
+    return _rChild->is_vector_op();
   }
   return false;
 }
-
 
 bool MatchRule::skip_antidep_check() const {
   // Some loads operate on what is effectively immutable memory so we
